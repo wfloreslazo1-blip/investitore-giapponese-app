@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Il mio percorso — Lettura & Giapponese</title>
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<meta name="theme-color" content="#1a3c2e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Percorso">
+</head>
+<body>
+
+<header>
+  <h1>Il mio percorso</h1>
+  <p>Lettura de "L'Investitore Autonomo" e studio del giapponese — tutto salvato solo su questo computer.</p>
+</header>
+
+<nav class="tabs">
+  <button class="active" data-view="view-reading">📖 Lettura</button>
+  <button data-view="view-japanese">🇯🇵 Giapponese</button>
+</nav>
+
+<main>
+
+  <section id="view-reading" class="view active">
+    <div class="card">
+      <h2>Il tuo percorso di lettura</h2>
+      <label for="reading-chapter-input" class="muted">A che capitolo sei arrivato? (su 32)</label><br>
+      <input type="number" id="reading-chapter-input" min="0" max="32" value="0" class="chapter-input">
+      <div class="progress-bar"><div id="reading-progress-fill" style="width:0%"></div></div>
+      <div id="reading-progress-label" class="muted"></div>
+    </div>
+
+    <div class="subnav">
+      <button data-readmode="flashcard" class="active">Flashcard</button>
+      <button data-readmode="mc">Quiz — scelta multipla</button>
+      <button data-readmode="stats">Statistiche</button>
+    </div>
+
+    <div id="reading-quiz-area"></div>
+
+    <div class="card">
+      <h2>Programma delle 12 settimane (riferimento)</h2>
+      <div id="program-reference"></div>
+    </div>
+  </section>
+
+  <section id="view-japanese" class="view">
+    <div class="dataset-toggle">
+      <button data-dataset="hiragana" class="active">Hiragana</button>
+      <button data-dataset="wiki">Wiki (vocaboli)</button>
+    </div>
+
+    <div class="subnav">
+      <button data-jpmode="flashcard" class="active">Flashcard</button>
+      <button data-jpmode="mc">Quiz — scelta multipla</button>
+      <button data-jpmode="type">Quiz — scrivi la risposta</button>
+      <button data-jpmode="stats">Statistiche</button>
+    </div>
+
+    <div id="jp-area"></div>
+
+    <div class="card">
+      <h2>Aggiungi una voce alla wiki</h2>
+      <p class="muted">Puoi aggiungerne qui, oppure condividere materiale in una conversazione con Claude perché aggiorni direttamente data.js.</p>
+      <form id="wiki-add-form" class="add-form">
+        <input id="wiki-add-termine" placeholder="Termine (es. 猫)" required>
+        <input id="wiki-add-lettura" placeholder="Lettura (es. neko)" required>
+        <input id="wiki-add-significato" placeholder="Significato (es. gatto)" required>
+        <input id="wiki-add-categoria" placeholder="Categoria (opz.)">
+        <button type="submit">Aggiungi</button>
+      </form>
+    </div>
+  </section>
+
+</main>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
