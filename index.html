@@ -17,12 +17,13 @@
 
 <header>
   <h1>Il mio percorso</h1>
-  <p>Lettura de "L'Investitore Autonomo" e studio del giapponese — tutto salvato solo su questo computer.</p>
+  <p>Lettura de "L'Investitore Autonomo", giapponese e preparazione Salesforce — tutto salvato solo su questo telefono/browser.</p>
 </header>
 
 <nav class="tabs">
   <button class="active" data-view="view-reading">📖 Lettura</button>
   <button data-view="view-japanese">🇯🇵 Giapponese</button>
+  <button data-view="view-career">💼 Carriera</button>
 </nav>
 
 <main>
@@ -76,6 +77,29 @@
         <button type="submit">Aggiungi</button>
       </form>
     </div>
+  </section>
+
+  <section id="view-career" class="view">
+    <div class="card">
+      <h2>Certificazione Salesforce Certified Associate</h2>
+      <p class="muted">Basato sul trailmix ufficiale <a href="https://trailhead.salesforce.com/it/users/strailhead/trailmixes/prepare-for-your-salesforce-certified-associate-credential" target="_blank" rel="noopener">"Prepare for your Salesforce Certified Associate Credential"</a>. Esame: 40 domande, 70 minuti, soglia 62%.</p>
+      <div class="progress-bar"><div id="career-progress-fill" style="width:0%"></div></div>
+      <div id="career-progress-label" class="muted"></div>
+    </div>
+
+    <div class="card">
+      <h2>Sezioni dell'esame</h2>
+      <p class="muted">Segna le sezioni che hai già studiato sul trailmix.</p>
+      <div id="career-sections-checklist"></div>
+    </div>
+
+    <div class="subnav">
+      <button data-careermode="flashcard" class="active">Flashcard</button>
+      <button data-careermode="mc">Quiz — scelta multipla</button>
+      <button data-careermode="stats">Statistiche</button>
+    </div>
+
+    <div id="career-quiz-area"></div>
   </section>
 
 </main>

@@ -5,6 +5,8 @@ const LS_KEYS = {
   hiraganaStats: "ia_hiragana_stats",
   wikiStats: "ia_wiki_stats",
   customWiki: "ia_custom_wiki",
+  careerSectionsDone: "ia_career_sections_done",
+  careerStats: "ia_career_stats",
 };
 
 function loadJSON(key, fallback) {
@@ -24,6 +26,8 @@ let readingStats = loadJSON(LS_KEYS.readingStats, {});
 let hiraganaStats = loadJSON(LS_KEYS.hiraganaStats, {});
 let wikiStats = loadJSON(LS_KEYS.wikiStats, {});
 let customWiki = loadJSON(LS_KEYS.customWiki, []);
+let careerSectionsDone = loadJSON(LS_KEYS.careerSectionsDone, []);
+let careerStats = loadJSON(LS_KEYS.careerStats, {});
 
 function fullWiki() {
   return WIKI.concat(customWiki);
@@ -43,16 +47,19 @@ document.querySelectorAll("nav.tabs button").forEach((btn) => {
 function statsFor(dataset) {
   if (dataset === "hiragana") return hiraganaStats;
   if (dataset === "wiki") return wikiStats;
+  if (dataset === "career") return careerStats;
   return readingStats;
 }
 function statsKeyFor(dataset) {
   if (dataset === "hiragana") return LS_KEYS.hiraganaStats;
   if (dataset === "wiki") return LS_KEYS.wikiStats;
+  if (dataset === "career") return LS_KEYS.careerStats;
   return LS_KEYS.readingStats;
 }
 function itemsFor(dataset) {
   if (dataset === "hiragana") return HIRAGANA;
   if (dataset === "wiki") return fullWiki();
+  if (dataset === "career") return CAREER_QUIZ;
   return BOOK_QUIZ.filter((q) => q.chapter <= readingChapter);
 }
 function itemKey(dataset, item) {
@@ -76,6 +83,10 @@ function itemExtra(dataset, item) {
 }
 function itemMeta(dataset, item) {
   if (dataset === "reading") return `Capitolo ${item.chapter} — ${item.chapterTitle}`;
+  if (dataset === "career") {
+    const s = CAREER_SECTIONS.find((sec) => sec.id === item.section);
+    return `Sezione ${item.section} — ${item.sectionTitle}${s ? ` (${s.weight}% dell'esame)` : ""}`;
+  }
   return "";
 }
 
@@ -115,7 +126,7 @@ function shuffle(arr) {
 
 function buildOptions(dataset, item) {
   const correctAnswer = itemAnswer(dataset, item);
-  if (dataset === "reading") {
+  if (dataset === "reading" || dataset === "career") {
     return { correctAnswer, options: shuffle(item.options.slice()) };
   }
   const items = itemsFor(dataset);
@@ -132,6 +143,11 @@ function buildOptions(dataset, item) {
 
 let currentItem = null;
 
+function emptyStateMessage(dataset) {
+  if (dataset === "career") return "Nessuna domanda disponibile.";
+  return "Imposta a che capitolo sei arrivato qui sopra per iniziare: le domande compaiono solo sui capitoli già letti, per non fare spoiler.";
+}
+
 function renderEmptyState(area, message) {
   const card = document.createElement("div");
   card.className = "card";
@@ -142,12 +158,12 @@ function renderEmptyState(area, message) {
 function renderFlashcard(dataset, area) {
   const items = itemsFor(dataset);
   if (items.length === 0) {
-    renderEmptyState(area, "Imposta a che capitolo sei arrivato qui sopra per iniziare: le domande compaiono solo sui capitoli già letti, per non fare spoiler.");
+    renderEmptyState(area, emptyStateMessage(dataset));
     return;
   }
   currentItem = pickWeighted(dataset);
   const meta = itemMeta(dataset, currentItem);
-  const textMode = dataset === "reading";
+  const textMode = dataset === "reading" || dataset === "career";
   const card = document.createElement("div");
   card.className = "card flashcard" + (textMode ? " text-front" : "");
   card.innerHTML = `
@@ -180,12 +196,12 @@ function renderFlashcard(dataset, area) {
 function renderMultipleChoice(dataset, area) {
   const items = itemsFor(dataset);
   if (items.length === 0) {
-    renderEmptyState(area, "Imposta a che capitolo sei arrivato qui sopra per iniziare: le domande compaiono solo sui capitoli già letti, per non fare spoiler.");
+    renderEmptyState(area, emptyStateMessage(dataset));
     return;
   }
   currentItem = pickWeighted(dataset);
   const meta = itemMeta(dataset, currentItem);
-  const textMode = dataset === "reading";
+  const textMode = dataset === "reading" || dataset === "career";
   const { correctAnswer, options } = buildOptions(dataset, currentItem);
 
   const card = document.createElement("div");
@@ -261,7 +277,7 @@ function renderStats(dataset, area) {
   const stats = statsFor(dataset);
   const card = document.createElement("div");
   card.className = "card";
-  const label = dataset === "hiragana" ? "Hiragana" : dataset === "wiki" ? "Wiki" : "Lettura";
+  const label = dataset === "hiragana" ? "Hiragana" : dataset === "wiki" ? "Wiki" : dataset === "career" ? "Carriera" : "Lettura";
   let rows = items.map((it) => {
     const key = itemKey(dataset, it);
     const s = stats[key];
@@ -271,7 +287,7 @@ function renderStats(dataset, area) {
     return { front: itemFront(dataset, it), answer: itemAnswer(dataset, it), attempts, correct, acc };
   });
   rows.sort((a, b) => (a.acc === null ? -1 : a.acc) - (b.acc === null ? -1 : b.acc));
-  const frontClass = dataset === "reading" ? "" : ' style="font-size:18px"';
+  const frontClass = dataset === "reading" || dataset === "career" ? "" : ' style="font-size:18px"';
   card.innerHTML = `
     <h2>Statistiche — ${label}</h2>
     <table class="stats-table">
@@ -321,6 +337,59 @@ function renderReadMode() {
   if (readMode === "flashcard") renderFlashcard("reading", area);
   else if (readMode === "mc") renderMultipleChoice("reading", area);
   else if (readMode === "stats") renderStats("reading", area);
+}
+
+// ---------- Carriera: quiz di preparazione Salesforce Certified Associate ----------
+let careerMode = "flashcard"; // "flashcard" | "mc" | "stats"
+
+function renderCareerProgress() {
+  const pct = Math.round((careerSectionsDone.length / CAREER_SECTIONS.length) * 100);
+  document.getElementById("career-progress-fill").style.width = pct + "%";
+  const answered = Object.values(careerStats).reduce((sum, s) => sum + s.attempts, 0);
+  const correct = Object.values(careerStats).reduce((sum, s) => sum + s.correct, 0);
+  document.getElementById("career-progress-label").textContent =
+    `${careerSectionsDone.length} / ${CAREER_SECTIONS.length} sezioni studiate (${pct}%)` +
+    (answered ? ` — ${correct}/${answered} risposte corrette finora` : "");
+
+  const list = document.getElementById("career-sections-checklist");
+  list.innerHTML = "";
+  CAREER_SECTIONS.forEach((sec) => {
+    const row = document.createElement("label");
+    row.className = "week-row";
+    row.style.cursor = "pointer";
+    row.innerHTML = `
+      <input type="checkbox" ${careerSectionsDone.includes(sec.id) ? "checked" : ""}>
+      <span class="week-body"><strong>${sec.name}</strong> <span class="muted">(${sec.weight}% dell'esame)</span><br><span class="chapters">${sec.description}</span></span>
+    `;
+    const cb = row.querySelector("input");
+    cb.addEventListener("change", () => {
+      if (cb.checked) {
+        if (!careerSectionsDone.includes(sec.id)) careerSectionsDone.push(sec.id);
+      } else {
+        careerSectionsDone = careerSectionsDone.filter((id) => id !== sec.id);
+      }
+      saveJSON(LS_KEYS.careerSectionsDone, careerSectionsDone);
+      renderCareerProgress();
+    });
+    list.appendChild(row);
+  });
+}
+
+document.querySelectorAll(".subnav button[data-careermode]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    careerMode = btn.dataset.careermode;
+    document.querySelectorAll(".subnav button[data-careermode]").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    renderCareerMode();
+  });
+});
+
+function renderCareerMode() {
+  const area = document.getElementById("career-quiz-area");
+  area.innerHTML = "";
+  if (careerMode === "flashcard") renderFlashcard("career", area);
+  else if (careerMode === "mc") renderMultipleChoice("career", area);
+  else if (careerMode === "stats") renderStats("career", area);
 }
 
 // ---------- Giapponese: hiragana / wiki ----------
@@ -387,6 +456,8 @@ function renderProgramReference() {
 renderReadingProgress();
 renderReadMode();
 renderProgramReference();
+renderCareerProgress();
+renderCareerMode();
 renderDatasetToggle();
 renderJpMode();
 
