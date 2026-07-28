@@ -59,7 +59,10 @@ function statsKeyFor(dataset) {
 function itemsFor(dataset) {
   if (dataset === "hiragana") return HIRAGANA;
   if (dataset === "wiki") return fullWiki();
-  if (dataset === "career") return CAREER_QUIZ;
+  if (dataset === "career") {
+    if (careerBadgeFilter === "all") return CAREER_QUIZ;
+    return CAREER_QUIZ.filter((q) => q.badge === careerBadgeFilter);
+  }
   return BOOK_QUIZ.filter((q) => q.chapter <= readingChapter);
 }
 function itemKey(dataset, item) {
@@ -85,7 +88,8 @@ function itemMeta(dataset, item) {
   if (dataset === "reading") return `Capitolo ${item.chapter} — ${item.chapterTitle}`;
   if (dataset === "career") {
     const s = CAREER_SECTIONS.find((sec) => sec.id === item.section);
-    return `Sezione ${item.section} — ${item.sectionTitle}${s ? ` (${s.weight}% dell'esame)` : ""}`;
+    const b = CAREER_BADGES.find((bd) => bd.id === item.badge);
+    return `Sezione ${item.section} — ${item.sectionTitle}${s ? ` (${s.weight}% dell'esame)` : ""}${b ? ` · ${b.name}` : ""}`;
   }
   return "";
 }
@@ -341,6 +345,35 @@ function renderReadMode() {
 
 // ---------- Carriera: quiz di preparazione Salesforce Certified Associate ----------
 let careerMode = "flashcard"; // "flashcard" | "mc" | "stats"
+let careerBadgeFilter = "all"; // "all" oppure l'id di un CAREER_BADGES
+
+function renderCareerBadges() {
+  const wrap = document.getElementById("career-badges-list");
+  wrap.className = "badge-filter";
+  wrap.innerHTML = "";
+
+  const allBtn = document.createElement("button");
+  allBtn.className = careerBadgeFilter === "all" ? "active" : "";
+  allBtn.textContent = "Tutti i moduli";
+  allBtn.addEventListener("click", () => {
+    careerBadgeFilter = "all";
+    renderCareerBadges();
+    renderCareerMode();
+  });
+  wrap.appendChild(allBtn);
+
+  CAREER_BADGES.forEach((b) => {
+    const btn = document.createElement("button");
+    btn.className = careerBadgeFilter === b.id ? "active" : "";
+    btn.innerHTML = `${b.name}<span class="badge-meta">${b.meta}</span>`;
+    btn.addEventListener("click", () => {
+      careerBadgeFilter = b.id;
+      renderCareerBadges();
+      renderCareerMode();
+    });
+    wrap.appendChild(btn);
+  });
+}
 
 function renderCareerProgress() {
   const pct = Math.round((careerSectionsDone.length / CAREER_SECTIONS.length) * 100);
@@ -496,6 +529,7 @@ renderReadingProgress();
 renderReadMode();
 renderProgramReference();
 renderCareerProgress();
+renderCareerBadges();
 renderCareerMode();
 renderDatasetToggle();
 renderJpMode();

@@ -152,3 +152,11 @@ h2 { color: var(--accent); font-size: 17px; margin-top: 0; }
   width: 80px; margin: 6px 0 10px 0; background: var(--bg); color: var(--ink); display: block;
 }
 .stats-table td:first-child { max-width: 260px; }
+.badge-filter { display: flex; gap: 8px; flex-wrap: wrap; }
+.badge-filter button {
+  border: 1px solid var(--border); background: var(--card); color: var(--ink);
+  padding: 8px 14px; border-radius: 10px; cursor: pointer; font-size: 13px; text-align: left; line-height: 1.3; max-width: 260px;
+}
+.badge-filter button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.badge-filter button .badge-meta { display: block; font-size: 11px; color: var(--muted); margin-top: 3px; }
+.badge-filter button.active .badge-meta { color: rgba(255,255,255,0.8); }
