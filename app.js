@@ -389,7 +389,46 @@ function renderCareerMode() {
   area.innerHTML = "";
   if (careerMode === "flashcard") renderFlashcard("career", area);
   else if (careerMode === "mc") renderMultipleChoice("career", area);
+  else if (careerMode === "glossario") renderGlossary(area);
   else if (careerMode === "stats") renderStats("career", area);
+}
+
+function renderGlossary(area) {
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `
+    <h2>Glossario</h2>
+    <p class="muted">Cerca un termine (es. CRM, RAG, Data 360, Account...) per vedere il suo significato.</p>
+    <input type="text" id="glossary-search" class="chapter-input" style="width:100%" placeholder="Cerca un termine...">
+    <div id="glossary-results"></div>
+  `;
+  area.appendChild(card);
+
+  const input = card.querySelector("#glossary-search");
+  const results = card.querySelector("#glossary-results");
+
+  function renderResults() {
+    const q = input.value.trim().toLowerCase();
+    const matches = CAREER_GLOSSARY.filter((g) =>
+      !q || g.term.toLowerCase().includes(q) || g.definition.toLowerCase().includes(q) || g.category.toLowerCase().includes(q)
+    );
+    if (matches.length === 0) {
+      results.innerHTML = `<p class="muted">Nessun termine trovato.</p>`;
+      return;
+    }
+    const categories = [...new Set(matches.map((g) => g.category))];
+    results.innerHTML = categories.map((cat) => `
+      <h3 style="color:var(--accent-2);font-size:14px;margin:16px 0 6px 0">${cat}</h3>
+      ${matches.filter((g) => g.category === cat).map((g) => `
+        <div class="week-row">
+          <span class="week-body"><strong>${g.term}</strong><br><span class="chapters">${g.definition}</span></span>
+        </div>
+      `).join("")}
+    `).join("");
+  }
+
+  input.addEventListener("input", renderResults);
+  renderResults();
 }
 
 // ---------- Giapponese: hiragana / wiki ----------
