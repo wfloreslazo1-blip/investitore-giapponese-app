@@ -89,7 +89,7 @@ function itemMeta(dataset, item) {
   if (dataset === "career") {
     const s = CAREER_SECTIONS.find((sec) => sec.id === item.section);
     const b = CAREER_BADGES.find((bd) => bd.id === item.badge);
-    return `Sezione ${item.section} — ${item.sectionTitle}${s ? ` (${s.weight}% dell'esame)` : ""}${b ? ` · ${b.name}` : ""}`;
+    return `Section ${item.section} — ${item.sectionTitle}${s ? ` (${s.weight}% of the exam)` : ""}${b ? ` · ${b.name}` : ""}`;
   }
   return "";
 }
@@ -148,7 +148,7 @@ function buildOptions(dataset, item) {
 let currentItem = null;
 
 function emptyStateMessage(dataset) {
-  if (dataset === "career") return "Nessuna domanda disponibile.";
+  if (dataset === "career") return "No questions available yet.";
   return "Imposta a che capitolo sei arrivato qui sopra per iniziare: le domande compaiono solo sui capitoli già letti, per non fare spoiler.";
 }
 
@@ -168,13 +168,17 @@ function renderFlashcard(dataset, area) {
   currentItem = pickWeighted(dataset);
   const meta = itemMeta(dataset, currentItem);
   const textMode = dataset === "reading" || dataset === "career";
+  const isCareer = dataset === "career";
+  const hintText = isCareer ? "Click to reveal, then rate whether you knew it" : "Clicca per rivelare, poi valuta se lo sapevi";
+  const wrongLabel = isCareer ? "Didn't know it" : "Non lo sapevo";
+  const okLabel = isCareer ? "Knew it" : "Lo sapevo";
   const card = document.createElement("div");
   card.className = "card flashcard" + (textMode ? " text-front" : "");
   card.innerHTML = `
     ${meta ? `<div class="chapter-badge">${meta}</div>` : ""}
     <div class="front">${itemFront(dataset, currentItem)}</div>
     <div class="back" style="visibility:hidden">${itemAnswer(dataset, currentItem)}${itemExtra(dataset, currentItem) ? " — " + itemExtra(dataset, currentItem) : ""}</div>
-    <div class="hint">Clicca per rivelare, poi valuta se lo sapevi</div>
+    <div class="hint">${hintText}</div>
   `;
   const back = card.querySelector(".back");
   card.addEventListener("click", (e) => {
@@ -188,8 +192,8 @@ function renderFlashcard(dataset, area) {
   btnRow.style.gap = "10px";
   btnRow.style.justifyContent = "center";
   btnRow.innerHTML = `
-    <button style="padding:10px 16px;border-radius:8px;border:1px solid var(--border);background:var(--bad);color:#fff;cursor:pointer">Non lo sapevo</button>
-    <button style="padding:10px 16px;border-radius:8px;border:1px solid var(--border);background:var(--ok);color:#fff;cursor:pointer">Lo sapevo</button>
+    <button style="padding:10px 16px;border-radius:8px;border:1px solid var(--border);background:var(--bad);color:#fff;cursor:pointer">${wrongLabel}</button>
+    <button style="padding:10px 16px;border-radius:8px;border:1px solid var(--border);background:var(--ok);color:#fff;cursor:pointer">${okLabel}</button>
   `;
   const [wrongBtn, okBtn] = btnRow.querySelectorAll("button");
   wrongBtn.addEventListener("click", () => { recordResult(dataset, currentItem, false); renderFlashcard(dataset, area); });
@@ -229,9 +233,11 @@ function renderMultipleChoice(dataset, area) {
       });
       const fb = document.createElement("div");
       fb.className = "feedback " + (correct ? "ok" : "bad");
+      const correctWord = dataset === "career" ? "Correct!" : "Corretto!";
+      const wrongPrefix = dataset === "career" ? "Wrong. Answer:" : "Sbagliato. Risposta:";
       fb.textContent = correct
-        ? (itemExtra(dataset, currentItem) ? "Corretto! " + itemExtra(dataset, currentItem) : "Corretto!")
-        : `Sbagliato. Risposta: ${correctAnswer}${itemExtra(dataset, currentItem) ? " — " + itemExtra(dataset, currentItem) : ""}`;
+        ? (itemExtra(dataset, currentItem) ? correctWord + " " + itemExtra(dataset, currentItem) : correctWord)
+        : `${wrongPrefix} ${correctAnswer}${itemExtra(dataset, currentItem) ? " — " + itemExtra(dataset, currentItem) : ""}`;
       card.appendChild(fb);
       setTimeout(() => renderMultipleChoice(dataset, area), textMode ? 2200 : 900);
     });
@@ -281,7 +287,8 @@ function renderStats(dataset, area) {
   const stats = statsFor(dataset);
   const card = document.createElement("div");
   card.className = "card";
-  const label = dataset === "hiragana" ? "Hiragana" : dataset === "wiki" ? "Wiki" : dataset === "career" ? "Carriera" : "Lettura";
+  const isCareer = dataset === "career";
+  const label = dataset === "hiragana" ? "Hiragana" : dataset === "wiki" ? "Wiki" : isCareer ? "Career" : "Lettura";
   let rows = items.map((it) => {
     const key = itemKey(dataset, it);
     const s = stats[key];
@@ -292,10 +299,14 @@ function renderStats(dataset, area) {
   });
   rows.sort((a, b) => (a.acc === null ? -1 : a.acc) - (b.acc === null ? -1 : b.acc));
   const frontClass = dataset === "reading" || dataset === "career" ? "" : ' style="font-size:18px"';
+  const heading = isCareer ? `Statistics — ${label}` : `Statistiche — ${label}`;
+  const thAnswer = isCareer ? "Answer" : "Risposta";
+  const thAttempts = isCareer ? "Attempts" : "Tentativi";
+  const thAcc = isCareer ? "% correct" : "% corrette";
   card.innerHTML = `
-    <h2>Statistiche — ${label}</h2>
+    <h2>${heading}</h2>
     <table class="stats-table">
-      <tr><th></th><th>Risposta</th><th>Tentativi</th><th>% corrette</th></tr>
+      <tr><th></th><th>${thAnswer}</th><th>${thAttempts}</th><th>${thAcc}</th></tr>
       ${rows.map((r) => `<tr><td${frontClass}>${r.front}</td><td>${r.answer}</td><td>${r.attempts}</td><td>${r.acc === null ? "—" : r.acc + "%"}</td></tr>`).join("")}
     </table>
   `;
@@ -354,7 +365,7 @@ function renderCareerBadges() {
 
   const allBtn = document.createElement("button");
   allBtn.className = careerBadgeFilter === "all" ? "active" : "";
-  allBtn.textContent = "Tutti i moduli";
+  allBtn.textContent = "All modules";
   allBtn.addEventListener("click", () => {
     careerBadgeFilter = "all";
     renderCareerBadges();
@@ -381,8 +392,8 @@ function renderCareerProgress() {
   const answered = Object.values(careerStats).reduce((sum, s) => sum + s.attempts, 0);
   const correct = Object.values(careerStats).reduce((sum, s) => sum + s.correct, 0);
   document.getElementById("career-progress-label").textContent =
-    `${careerSectionsDone.length} / ${CAREER_SECTIONS.length} sezioni studiate (${pct}%)` +
-    (answered ? ` — ${correct}/${answered} risposte corrette finora` : "");
+    `${careerSectionsDone.length} / ${CAREER_SECTIONS.length} sections studied (${pct}%)` +
+    (answered ? ` — ${correct}/${answered} correct answers so far` : "");
 
   const list = document.getElementById("career-sections-checklist");
   list.innerHTML = "";
@@ -392,7 +403,7 @@ function renderCareerProgress() {
     row.style.cursor = "pointer";
     row.innerHTML = `
       <input type="checkbox" ${careerSectionsDone.includes(sec.id) ? "checked" : ""}>
-      <span class="week-body"><strong>${sec.name}</strong> <span class="muted">(${sec.weight}% dell'esame)</span><br><span class="chapters">${sec.description}</span></span>
+      <span class="week-body"><strong>${sec.name}</strong> <span class="muted">(${sec.weight}% of the exam)</span><br><span class="chapters">${sec.description}</span></span>
     `;
     const cb = row.querySelector("input");
     cb.addEventListener("change", () => {
@@ -430,9 +441,9 @@ function renderGlossary(area) {
   const card = document.createElement("div");
   card.className = "card";
   card.innerHTML = `
-    <h2>Glossario</h2>
-    <p class="muted">Cerca un termine (es. CRM, RAG, Data 360, Account...) per vedere il suo significato.</p>
-    <input type="text" id="glossary-search" class="chapter-input" style="width:100%" placeholder="Cerca un termine...">
+    <h2>Glossary</h2>
+    <p class="muted">Search a term (e.g. CRM, RAG, Data 360, Account...) to see its definition.</p>
+    <input type="text" id="glossary-search" class="chapter-input" style="width:100%" placeholder="Search a term...">
     <div id="glossary-results"></div>
   `;
   area.appendChild(card);
@@ -446,7 +457,7 @@ function renderGlossary(area) {
       !q || g.term.toLowerCase().includes(q) || g.definition.toLowerCase().includes(q) || g.category.toLowerCase().includes(q)
     );
     if (matches.length === 0) {
-      results.innerHTML = `<p class="muted">Nessun termine trovato.</p>`;
+      results.innerHTML = `<p class="muted">No term found.</p>`;
       return;
     }
     const categories = [...new Set(matches.map((g) => g.category))];
