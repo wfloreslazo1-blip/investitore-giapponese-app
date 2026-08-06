@@ -25,6 +25,7 @@
   <button data-view="view-japanese">🇯🇵 Giapponese</button>
   <button data-view="view-career">💼 Carriera</button>
   <button data-view="view-fiscalita">🧾 Fiscalità</button>
+  <button data-view="view-precision">🎯 Precisione</button>
 </nav>
 
 <main>
@@ -137,6 +138,30 @@
     </div>
 
     <div id="fiscalita-quiz-area"></div>
+  </section>
+
+  <section id="view-precision" class="view">
+    <div class="card">
+      <h2>Precisione &amp; attenzione al dettaglio</h2>
+      <p class="muted">Stesse domande delle altre sezioni, ma qui la modalità è diversa: scegli una risposta, confermala, e solo dopo scopri se è giusta — niente click veloce che salta subito alla prossima. Qui non conta la velocità, conta azzeccarla la prima volta.</p>
+    </div>
+
+    <div class="card">
+      <h2>Argomento</h2>
+      <p class="muted">Scegli su cosa vuoi allenare la precisione: le domande si adattano subito.</p>
+      <div id="precision-topics" class="badge-filter"></div>
+    </div>
+
+    <div class="card precision-streak-card">
+      <div id="precision-streak-label"></div>
+    </div>
+
+    <div class="subnav">
+      <button data-precisionmode="quiz" class="active">Quiz</button>
+      <button data-precisionmode="stats">Statistiche</button>
+    </div>
+
+    <div id="precision-quiz-area"></div>
   </section>
 
 </main>

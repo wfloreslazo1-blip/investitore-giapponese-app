@@ -9,6 +9,8 @@ const LS_KEYS = {
   careerStats: "ia_career_stats",
   fiscalitaSectionsDone: "ia_fiscalita_sections_done",
   fiscalitaStats: "ia_fiscalita_stats",
+  precisionStreak: "ia_precision_streak",
+  precisionDataset: "ia_precision_dataset",
 };
 
 function loadJSON(key, fallback) {
@@ -32,6 +34,8 @@ let careerSectionsDone = loadJSON(LS_KEYS.careerSectionsDone, []);
 let careerStats = loadJSON(LS_KEYS.careerStats, {});
 let fiscalitaSectionsDone = loadJSON(LS_KEYS.fiscalitaSectionsDone, []);
 let fiscalitaStats = loadJSON(LS_KEYS.fiscalitaStats, {});
+let precisionStreak = loadJSON(LS_KEYS.precisionStreak, {}); // { [dataset]: {current, best} }
+let precisionDataset = loadJSON(LS_KEYS.precisionDataset, "reading");
 
 function fullWiki() {
   return WIKI.concat(customWiki);
@@ -632,6 +636,138 @@ function renderProgramReference() {
   `;
 }
 
+// ---------- Precisione: stesse domande, ma con conferma prima di scoprire il risultato ----------
+const PRECISION_TOPICS = [
+  { id: "reading", label: "📖 Lettura" },
+  { id: "hiragana", label: "🇯🇵 Hiragana" },
+  { id: "wiki", label: "🇯🇵 Vocaboli" },
+  { id: "career", label: "💼 Carriera" },
+  { id: "fiscalita", label: "🧾 Fiscalità" },
+];
+let precisionMode = "quiz"; // "quiz" | "stats"
+
+function getPrecisionStreak(dataset) {
+  return precisionStreak[dataset] || { current: 0, best: 0 };
+}
+
+function bumpPrecisionStreak(dataset, correct) {
+  const s = getPrecisionStreak(dataset);
+  if (correct) {
+    s.current++;
+    if (s.current > s.best) s.best = s.current;
+  } else {
+    s.current = 0;
+  }
+  precisionStreak[dataset] = s;
+  saveJSON(LS_KEYS.precisionStreak, precisionStreak);
+}
+
+function renderPrecisionStreakLabel() {
+  const s = getPrecisionStreak(precisionDataset);
+  document.getElementById("precision-streak-label").innerHTML =
+    `<span class="precision-streak-label">Serie attuale: <strong>${s.current}</strong> · Record: <strong>${s.best}</strong> risposte giuste di fila (senza sbagliarne una)</span>`;
+}
+
+function renderPrecisionTopics() {
+  const wrap = document.getElementById("precision-topics");
+  wrap.innerHTML = "";
+  PRECISION_TOPICS.forEach((t) => {
+    const btn = document.createElement("button");
+    btn.className = t.id === precisionDataset ? "active" : "";
+    btn.textContent = t.label;
+    btn.addEventListener("click", () => {
+      precisionDataset = t.id;
+      saveJSON(LS_KEYS.precisionDataset, precisionDataset);
+      renderPrecisionTopics();
+      renderPrecisionStreakLabel();
+      renderPrecisionView();
+    });
+    wrap.appendChild(btn);
+  });
+}
+
+document.querySelectorAll(".subnav button[data-precisionmode]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    precisionMode = btn.dataset.precisionmode;
+    document.querySelectorAll(".subnav button[data-precisionmode]").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    renderPrecisionView();
+  });
+});
+
+function renderPrecisionQuiz(area) {
+  const dataset = precisionDataset;
+  const items = itemsFor(dataset);
+  if (items.length === 0) {
+    renderEmptyState(area, emptyStateMessage(dataset));
+    return;
+  }
+  currentItem = pickWeighted(dataset);
+  const meta = itemMeta(dataset, currentItem);
+  const textMode = dataset === "reading" || dataset === "career" || dataset === "fiscalita";
+  const { correctAnswer, options } = buildOptions(dataset, currentItem);
+
+  const card = document.createElement("div");
+  card.className = "card quiz-question";
+  card.innerHTML = `
+    <div class="precision-tip">Rileggi con calma prima di scegliere. Qui non conta la velocità.</div>
+    ${meta ? `<div class="chapter-badge">${meta}</div>` : ""}
+    <div class="${textMode ? "question-text" : "char"}">${itemFront(dataset, currentItem)}</div>
+  `;
+  const optWrap = document.createElement("div");
+  optWrap.className = "quiz-options";
+  let selected = null;
+  options.forEach((opt) => {
+    const b = document.createElement("button");
+    b.textContent = opt;
+    b.addEventListener("click", () => {
+      selected = opt;
+      optWrap.querySelectorAll("button").forEach((ob) => ob.classList.toggle("selected", ob === b));
+      confirmBtn.disabled = false;
+    });
+    optWrap.appendChild(b);
+  });
+  card.appendChild(optWrap);
+
+  const confirmBtn = document.createElement("button");
+  confirmBtn.className = "precision-confirm";
+  confirmBtn.textContent = "Conferma risposta";
+  confirmBtn.disabled = true;
+  confirmBtn.addEventListener("click", () => {
+    const correct = selected === correctAnswer;
+    recordResult(dataset, currentItem, correct);
+    bumpPrecisionStreak(dataset, correct);
+    renderPrecisionStreakLabel();
+    optWrap.querySelectorAll("button").forEach((ob) => {
+      ob.disabled = true;
+      if (ob.textContent === correctAnswer) ob.classList.add("correct");
+      else if (ob.textContent === selected) ob.classList.add("wrong");
+    });
+    confirmBtn.disabled = true;
+    confirmBtn.style.display = "none";
+    const fb = document.createElement("div");
+    fb.className = "feedback " + (correct ? "ok" : "bad");
+    fb.textContent = correct
+      ? (itemExtra(dataset, currentItem) ? "Corretto! " + itemExtra(dataset, currentItem) : "Corretto!")
+      : `Non era questa. Risposta corretta: ${correctAnswer}${itemExtra(dataset, currentItem) ? " — " + itemExtra(dataset, currentItem) : ""}`;
+    card.appendChild(fb);
+    const nextBtn = document.createElement("button");
+    nextBtn.className = "precision-next";
+    nextBtn.textContent = "Prossima domanda";
+    nextBtn.addEventListener("click", renderPrecisionView);
+    card.appendChild(nextBtn);
+  });
+  card.appendChild(confirmBtn);
+  area.appendChild(card);
+}
+
+function renderPrecisionView() {
+  const area = document.getElementById("precision-quiz-area");
+  area.innerHTML = "";
+  if (precisionMode === "quiz") renderPrecisionQuiz(area);
+  else if (precisionMode === "stats") renderStats(precisionDataset, area);
+}
+
 // ---------- Init ----------
 renderReadingProgress();
 renderReadMode();
@@ -644,6 +780,9 @@ renderFiscalitaBadges();
 renderFiscalitaMode();
 renderDatasetToggle();
 renderJpMode();
+renderPrecisionTopics();
+renderPrecisionStreakLabel();
+renderPrecisionView();
 
 // ---------- PWA: service worker (cache offline per l'uso da telefono) ----------
 if ("serviceWorker" in navigator) {

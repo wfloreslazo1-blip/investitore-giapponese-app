@@ -160,3 +160,16 @@ h2 { color: var(--accent); font-size: 17px; margin-top: 0; }
 .badge-filter button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .badge-filter button .badge-meta { display: block; font-size: 11px; color: var(--muted); margin-top: 3px; }
 .badge-filter button.active .badge-meta { color: rgba(255,255,255,0.8); }
+.precision-tip {
+  font-size: 12px; color: var(--accent-2); background: var(--bg); border: 1px dashed var(--border);
+  border-radius: 8px; padding: 8px 12px; margin-bottom: 16px; text-align: center;
+}
+.quiz-options button.selected { border-color: var(--accent-2); box-shadow: inset 0 0 0 2px var(--accent-2); }
+.precision-confirm, .precision-next {
+  display: block; margin: 18px auto 0 auto; padding: 10px 20px; border-radius: 8px; border: none;
+  background: var(--accent); color: #fff; cursor: pointer; font-size: 14px;
+}
+.precision-confirm:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+.precision-streak-card { display: flex; align-items: center; justify-content: center; text-align: center; }
+.precision-streak-label { font-size: 14px; }
+.precision-streak-label strong { color: var(--accent-2); font-size: 20px; }
