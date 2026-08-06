@@ -1,4 +1,4 @@
-const CACHE_NAME = "percorso-v3";
+const CACHE_NAME = "percorso-v4";
 const ASSETS = [
   "./",
   "./index.html",

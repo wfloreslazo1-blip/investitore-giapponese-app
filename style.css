@@ -173,3 +173,33 @@ h2 { color: var(--accent); font-size: 17px; margin-top: 0; }
 .precision-streak-card { display: flex; align-items: center; justify-content: center; text-align: center; }
 .precision-streak-label { font-size: 14px; }
 .precision-streak-label strong { color: var(--accent-2); font-size: 20px; }
+
+.confronto-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 10px 0 18px 0; }
+@media (max-width: 520px) { .confronto-grid { grid-template-columns: 1fr; } }
+.confronto-col { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; background: var(--bg); }
+.confronto-col-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px; }
+.confronto-row { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.confronto-row:last-child { border-bottom: none; }
+.confronto-row span { color: var(--muted); }
+.confronto-row strong { font-variant-numeric: tabular-nums; }
+
+.trascrizione-code {
+  font-family: "SF Mono", Menlo, monospace; font-size: 20px; letter-spacing: 0.06em;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px; text-align: center; margin-bottom: 14px; word-break: break-all;
+}
+.trascrizione-input {
+  width: 100%; font-family: "SF Mono", Menlo, monospace; font-size: 16px; letter-spacing: 0.04em;
+  padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--ink); text-align: center;
+}
+.trascrizione-diff {
+  font-family: "SF Mono", Menlo, monospace; font-size: 18px; letter-spacing: 0.06em;
+  margin-top: 8px; word-break: break-all;
+}
+.diff-ok { color: var(--ok); }
+.diff-wrong { color: #fff; background: var(--bad); border-radius: 3px; padding: 0 1px; }
+.diff-missing { color: var(--bad); text-decoration: underline dotted; }
+
+.correzione-sentence { font-size: 17px; line-height: 1.9; margin-bottom: 16px; }
+.correzione-word { cursor: pointer; border-radius: 4px; padding: 1px 2px; }
+.correzione-word:hover { background: var(--bg); }

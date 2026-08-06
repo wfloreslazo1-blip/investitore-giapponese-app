@@ -10,7 +10,8 @@ const LS_KEYS = {
   fiscalitaSectionsDone: "ia_fiscalita_sections_done",
   fiscalitaStats: "ia_fiscalita_stats",
   precisionStreak: "ia_precision_streak",
-  precisionDataset: "ia_precision_dataset",
+  precisionExercise: "ia_precision_exercise",
+  precisionStats: "ia_precision_stats",
 };
 
 function loadJSON(key, fallback) {
@@ -34,8 +35,9 @@ let careerSectionsDone = loadJSON(LS_KEYS.careerSectionsDone, []);
 let careerStats = loadJSON(LS_KEYS.careerStats, {});
 let fiscalitaSectionsDone = loadJSON(LS_KEYS.fiscalitaSectionsDone, []);
 let fiscalitaStats = loadJSON(LS_KEYS.fiscalitaStats, {});
-let precisionStreak = loadJSON(LS_KEYS.precisionStreak, {}); // { [dataset]: {current, best} }
-let precisionDataset = loadJSON(LS_KEYS.precisionDataset, "reading");
+let precisionStreak = loadJSON(LS_KEYS.precisionStreak, {}); // { [exerciseId]: {current, best} }
+let precisionExercise = loadJSON(LS_KEYS.precisionExercise, "confronto");
+let precisionStats = loadJSON(LS_KEYS.precisionStats, {}); // { [exerciseId]: {attempts, correct} }
 
 function fullWiki() {
   return WIKI.concat(customWiki);
@@ -636,49 +638,87 @@ function renderProgramReference() {
   `;
 }
 
-// ---------- Precisione: stesse domande, ma con conferma prima di scoprire il risultato ----------
-const PRECISION_TOPICS = [
-  { id: "reading", label: "📖 Lettura" },
-  { id: "hiragana", label: "🇯🇵 Hiragana" },
-  { id: "wiki", label: "🇯🇵 Vocaboli" },
-  { id: "career", label: "💼 Carriera" },
-  { id: "fiscalita", label: "🧾 Fiscalità" },
+// ---------- Precisione: esercizi di attenzione al dettaglio, indipendenti dallo studio ----------
+const PRECISION_EXERCISES = [
+  { id: "confronto", label: "🔍 Confronto dati", meta: "Trova la riga diversa (o riconosci che sono identiche)" },
+  { id: "trascrizione", label: "⌨️ Trascrizione esatta", meta: "Ricopia un codice esattamente com'è" },
+  { id: "correzione", label: "✏️ Correggi l'errore", meta: "Individua la parola o il numero sbagliato" },
 ];
 let precisionMode = "quiz"; // "quiz" | "stats"
 
-function getPrecisionStreak(dataset) {
-  return precisionStreak[dataset] || { current: 0, best: 0 };
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-function bumpPrecisionStreak(dataset, correct) {
-  const s = getPrecisionStreak(dataset);
+function randInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function mutateDigit(str) {
+  const positions = [];
+  for (let i = 0; i < str.length; i++) if (/\d/.test(str[i])) positions.push(i);
+  if (positions.length === 0) return str;
+  const pos = positions[randInt(0, positions.length - 1)];
+  let newDigit;
+  do { newDigit = String(randInt(0, 9)); } while (newDigit === str[pos]);
+  return str.slice(0, pos) + newDigit + str.slice(pos + 1);
+}
+
+function getPrecisionStreak(exerciseId) {
+  return precisionStreak[exerciseId] || { current: 0, best: 0 };
+}
+
+function bumpPrecisionStreak(exerciseId, correct) {
+  const s = getPrecisionStreak(exerciseId);
   if (correct) {
     s.current++;
     if (s.current > s.best) s.best = s.current;
   } else {
     s.current = 0;
   }
-  precisionStreak[dataset] = s;
+  precisionStreak[exerciseId] = s;
   saveJSON(LS_KEYS.precisionStreak, precisionStreak);
 }
 
+function recordPrecisionResult(exerciseId, correct) {
+  const s = precisionStats[exerciseId] || { attempts: 0, correct: 0 };
+  s.attempts++;
+  if (correct) s.correct++;
+  precisionStats[exerciseId] = s;
+  saveJSON(LS_KEYS.precisionStats, precisionStats);
+  bumpPrecisionStreak(exerciseId, correct);
+  renderPrecisionStreakLabel();
+}
+
+function finishPrecisionRound(card, correct, explanation) {
+  const fb = document.createElement("div");
+  fb.className = "feedback " + (correct ? "ok" : "bad");
+  fb.textContent = (correct ? "Corretto! " : "Non esatto. ") + explanation;
+  card.appendChild(fb);
+  const nextBtn = document.createElement("button");
+  nextBtn.className = "precision-next";
+  nextBtn.textContent = "Prossimo esercizio";
+  nextBtn.addEventListener("click", renderPrecisionView);
+  card.appendChild(nextBtn);
+}
+
 function renderPrecisionStreakLabel() {
-  const s = getPrecisionStreak(precisionDataset);
+  const s = getPrecisionStreak(precisionExercise);
   document.getElementById("precision-streak-label").innerHTML =
     `<span class="precision-streak-label">Serie attuale: <strong>${s.current}</strong> · Record: <strong>${s.best}</strong> risposte giuste di fila (senza sbagliarne una)</span>`;
 }
 
-function renderPrecisionTopics() {
-  const wrap = document.getElementById("precision-topics");
+function renderPrecisionExercises() {
+  const wrap = document.getElementById("precision-exercises");
   wrap.innerHTML = "";
-  PRECISION_TOPICS.forEach((t) => {
+  PRECISION_EXERCISES.forEach((ex) => {
     const btn = document.createElement("button");
-    btn.className = t.id === precisionDataset ? "active" : "";
-    btn.textContent = t.label;
+    btn.className = ex.id === precisionExercise ? "active" : "";
+    btn.innerHTML = `${ex.label}<span class="badge-meta">${ex.meta}</span>`;
     btn.addEventListener("click", () => {
-      precisionDataset = t.id;
-      saveJSON(LS_KEYS.precisionDataset, precisionDataset);
-      renderPrecisionTopics();
+      precisionExercise = ex.id;
+      saveJSON(LS_KEYS.precisionExercise, precisionExercise);
+      renderPrecisionExercises();
       renderPrecisionStreakLabel();
       renderPrecisionView();
     });
@@ -695,77 +735,226 @@ document.querySelectorAll(".subnav button[data-precisionmode]").forEach((btn) =>
   });
 });
 
-function renderPrecisionQuiz(area) {
-  const dataset = precisionDataset;
-  const items = itemsFor(dataset);
-  if (items.length === 0) {
-    renderEmptyState(area, emptyStateMessage(dataset));
-    return;
-  }
-  currentItem = pickWeighted(dataset);
-  const meta = itemMeta(dataset, currentItem);
-  const textMode = dataset === "reading" || dataset === "career" || dataset === "fiscalita";
-  const { correctAnswer, options } = buildOptions(dataset, currentItem);
+// --- Esercizio 1: Confronto dati ---
+const CONFRONTO_FIELDS = [
+  { label: "Importo fattura", gen: () => "€ " + (randInt(1000, 4899999) / 100).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) },
+  { label: "Data emissione", gen: () => `${String(randInt(1, 28)).padStart(2, "0")}/${String(randInt(1, 12)).padStart(2, "0")}/${randInt(2022, 2026)}` },
+  { label: "N. riferimento", gen: () => `FT-${randInt(2022, 2026)}-${String(randInt(1, 99999)).padStart(5, "0")}` },
+  { label: "Quantità", gen: () => `${randInt(1, 9999)} pz` },
+  { label: "Aliquota IVA", gen: () => (randInt(0, 2200) / 100).toLocaleString("it-IT", { minimumFractionDigits: 2 }) + "%" },
+  { label: "Codice cliente", gen: () => `CL-${randInt(10000, 99999)}` },
+];
+let currentConfronto = null;
 
+function generateConfronto() {
+  const chosen = shuffle(CONFRONTO_FIELDS.slice()).slice(0, randInt(4, 5));
+  const rowsA = chosen.map((f) => ({ label: f.label, value: f.gen() }));
+  const identical = Math.random() < 0.25;
+  const diffIndex = identical ? null : randInt(0, rowsA.length - 1);
+  const rowsB = rowsA.map((r, i) => ({ label: r.label, value: i === diffIndex ? mutateDigit(r.value) : r.value }));
+  return { rowsA, rowsB, diffIndex };
+}
+
+function renderConfrontoExercise(area) {
+  currentConfronto = generateConfronto();
+  const { rowsA, rowsB } = currentConfronto;
   const card = document.createElement("div");
   card.className = "card quiz-question";
   card.innerHTML = `
-    <div class="precision-tip">Rileggi con calma prima di scegliere. Qui non conta la velocità.</div>
-    ${meta ? `<div class="chapter-badge">${meta}</div>` : ""}
-    <div class="${textMode ? "question-text" : "char"}">${itemFront(dataset, currentItem)}</div>
+    <div class="precision-tip">Confronta i due blocchi con calma: sono quasi identici, ma potrebbe esserci un valore diverso in una sola riga.</div>
+    <div class="confronto-grid">
+      <div class="confronto-col">
+        <div class="confronto-col-label">Blocco A</div>
+        ${rowsA.map((r) => `<div class="confronto-row"><span>${r.label}</span><strong>${r.value}</strong></div>`).join("")}
+      </div>
+      <div class="confronto-col">
+        <div class="confronto-col-label">Blocco B</div>
+        ${rowsB.map((r) => `<div class="confronto-row"><span>${r.label}</span><strong>${r.value}</strong></div>`).join("")}
+      </div>
+    </div>
   `;
   const optWrap = document.createElement("div");
   optWrap.className = "quiz-options";
-  let selected = null;
-  options.forEach((opt) => {
+  rowsA.forEach((r, i) => {
     const b = document.createElement("button");
-    b.textContent = opt;
-    b.addEventListener("click", () => {
-      selected = opt;
-      optWrap.querySelectorAll("button").forEach((ob) => ob.classList.toggle("selected", ob === b));
-      confirmBtn.disabled = false;
-    });
+    b.textContent = r.label;
+    b.addEventListener("click", () => answerConfronto(i, card, optWrap));
     optWrap.appendChild(b);
   });
+  const identicalBtn = document.createElement("button");
+  identicalBtn.textContent = "Sono identici";
+  identicalBtn.addEventListener("click", () => answerConfronto(null, card, optWrap));
+  optWrap.appendChild(identicalBtn);
   card.appendChild(optWrap);
+  area.appendChild(card);
+}
 
+function answerConfronto(answerIndex, card, optWrap) {
+  const { rowsA, rowsB, diffIndex } = currentConfronto;
+  const correct = answerIndex === diffIndex;
+  optWrap.querySelectorAll("button").forEach((b) => (b.disabled = true));
+  recordPrecisionResult("confronto", correct);
+  const explanation = diffIndex === null
+    ? "I due blocchi erano identici."
+    : `La riga diversa era "${rowsA[diffIndex].label}": Blocco A = ${rowsA[diffIndex].value}, Blocco B = ${rowsB[diffIndex].value}.`;
+  finishPrecisionRound(card, correct, explanation);
+}
+
+// --- Esercizio 2: Trascrizione esatta ---
+function genTrascrizioneCode() {
+  const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const DIGITS = "0123456789";
+  const seq = (n, pool) => Array.from({ length: n }, () => pool[randInt(0, pool.length - 1)]).join("");
+  if (Math.random() < 0.5) return `${seq(2, LETTERS)}-${seq(4, DIGITS)}-${seq(4, LETTERS + DIGITS)}`;
+  return `IT${randInt(10, 99)}${seq(1, LETTERS)} ${seq(4, DIGITS)} ${seq(4, DIGITS)} ${seq(4, DIGITS)}`;
+}
+
+function renderCharDiff(expected, typed) {
+  const len = Math.max(expected.length, typed.length);
+  let html = "";
+  for (let i = 0; i < len; i++) {
+    const e = expected[i];
+    const t = typed[i];
+    if (e === t) html += `<span class="diff-ok">${escapeHtml(t)}</span>`;
+    else if (t === undefined) html += `<span class="diff-missing">${escapeHtml(e)}</span>`;
+    else html += `<span class="diff-wrong">${escapeHtml(t)}</span>`;
+  }
+  return html;
+}
+
+let currentTrascrizioneCode = "";
+
+function renderTrascrizioneExercise(area) {
+  currentTrascrizioneCode = genTrascrizioneCode();
+  const card = document.createElement("div");
+  card.className = "card quiz-question";
+  card.innerHTML = `
+    <div class="precision-tip">Ricopia il codice esattamente come lo vedi, spazi e trattini compresi. Rileggi prima di confermare.</div>
+    <div class="trascrizione-code">${currentTrascrizioneCode}</div>
+    <input type="text" id="trascrizione-input" class="trascrizione-input" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Ricopia qui...">
+  `;
   const confirmBtn = document.createElement("button");
   confirmBtn.className = "precision-confirm";
-  confirmBtn.textContent = "Conferma risposta";
-  confirmBtn.disabled = true;
+  confirmBtn.textContent = "Conferma";
   confirmBtn.addEventListener("click", () => {
-    const correct = selected === correctAnswer;
-    recordResult(dataset, currentItem, correct);
-    bumpPrecisionStreak(dataset, correct);
-    renderPrecisionStreakLabel();
-    optWrap.querySelectorAll("button").forEach((ob) => {
-      ob.disabled = true;
-      if (ob.textContent === correctAnswer) ob.classList.add("correct");
-      else if (ob.textContent === selected) ob.classList.add("wrong");
-    });
+    const input = card.querySelector("#trascrizione-input");
+    const typed = input.value;
+    const correct = typed === currentTrascrizioneCode;
+    input.disabled = true;
     confirmBtn.disabled = true;
     confirmBtn.style.display = "none";
+    recordPrecisionResult("trascrizione", correct);
     const fb = document.createElement("div");
     fb.className = "feedback " + (correct ? "ok" : "bad");
-    fb.textContent = correct
-      ? (itemExtra(dataset, currentItem) ? "Corretto! " + itemExtra(dataset, currentItem) : "Corretto!")
-      : `Non era questa. Risposta corretta: ${correctAnswer}${itemExtra(dataset, currentItem) ? " — " + itemExtra(dataset, currentItem) : ""}`;
+    fb.innerHTML = correct
+      ? "Corretto, copiato esattamente!"
+      : `Non esatto. Confronto carattere per carattere:<div class="trascrizione-diff">${renderCharDiff(currentTrascrizioneCode, typed)}</div>`;
     card.appendChild(fb);
     const nextBtn = document.createElement("button");
     nextBtn.className = "precision-next";
-    nextBtn.textContent = "Prossima domanda";
+    nextBtn.textContent = "Prossimo esercizio";
     nextBtn.addEventListener("click", renderPrecisionView);
     card.appendChild(nextBtn);
   });
   card.appendChild(confirmBtn);
+  area.appendChild(card);
+  card.querySelector("#trascrizione-input").focus();
+}
+
+// --- Esercizio 3: Correggi l'errore ---
+const CORREZIONE_TEMPLATES = [
+  "Il pagamento di 1.250 euro è arrivato il 3 giugno 2026.",
+  "La riunione con il cliente è fissata per le 15:30 di giovedì 12.",
+  "Il fornitore ha inviato 48 unità con la fattura n. 00219.",
+  "Il contratto ha una durata di 24 mesi, rinnovabile una volta.",
+  "L'ufficio protocollo ha registrato la pratica con il numero 7734.",
+  "Il rimborso spese ammonta a 312,40 euro, da liquidare entro 30 giorni.",
+  "La sede secondaria si trova al piano 3, stanza 108.",
+  "Il preventivo prevede uno sconto del 15% sul totale.",
+];
+let currentCorrezione = null;
+
+function pickCorrezioneTemplate() {
+  const sentence = CORREZIONE_TEMPLATES[randInt(0, CORREZIONE_TEMPLATES.length - 1)];
+  const words = sentence.split(" ");
+  const candidates = words.map((w, i) => (/\d/.test(w) ? i : -1)).filter((i) => i !== -1);
+  const targetIndex = candidates[randInt(0, candidates.length - 1)];
+  const identical = Math.random() < 0.3;
+  const errorIndex = identical ? null : targetIndex;
+  const displayWords = words.slice();
+  if (errorIndex !== null) displayWords[errorIndex] = mutateDigit(words[errorIndex]);
+  return { words, displayWords, errorIndex };
+}
+
+function renderCorrezioneExercise(area) {
+  currentCorrezione = pickCorrezioneTemplate();
+  const { displayWords } = currentCorrezione;
+  const card = document.createElement("div");
+  card.className = "card quiz-question";
+  card.innerHTML = `<div class="precision-tip">Leggi con attenzione: potrebbe esserci un numero sbagliato. Clicca sulla parola sbagliata, oppure su "Nessun errore" se la frase è corretta.</div>`;
+  const sentenceEl = document.createElement("div");
+  sentenceEl.className = "correzione-sentence";
+  displayWords.forEach((w, i) => {
+    const span = document.createElement("span");
+    span.className = "correzione-word";
+    span.textContent = w + " ";
+    span.addEventListener("click", () => answerCorrezione(i, card, sentenceEl, noErrBtn));
+    sentenceEl.appendChild(span);
+  });
+  card.appendChild(sentenceEl);
+  const noErrBtn = document.createElement("button");
+  noErrBtn.className = "precision-confirm";
+  noErrBtn.textContent = "Nessun errore";
+  noErrBtn.addEventListener("click", () => answerCorrezione(null, card, sentenceEl, noErrBtn));
+  card.appendChild(noErrBtn);
+  area.appendChild(card);
+}
+
+function answerCorrezione(clickedIndex, card, sentenceEl, noErrBtn) {
+  const { errorIndex, words, displayWords } = currentCorrezione;
+  const correct = clickedIndex === errorIndex;
+  sentenceEl.querySelectorAll(".correzione-word").forEach((el, i) => {
+    el.style.pointerEvents = "none";
+    if (i === errorIndex) el.classList.add(correct ? "diff-ok" : "diff-wrong");
+    else if (i === clickedIndex) el.classList.add("diff-missing");
+  });
+  noErrBtn.disabled = true;
+  noErrBtn.style.display = "none";
+  recordPrecisionResult("correzione", correct);
+  const explanation = errorIndex === null
+    ? "La frase era corretta, nessun errore."
+    : `La parola corretta era "${words[errorIndex].trim()}" (scritta come "${displayWords[errorIndex].trim()}").`;
+  finishPrecisionRound(card, correct, explanation);
+}
+
+// --- Statistiche ---
+function renderPrecisionStats(area) {
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `<h2>Statistiche — Precisione</h2>
+    <table class="stats-table">
+      <tr><th>Esercizio</th><th>Tentativi</th><th>% corrette</th><th>Serie record</th></tr>
+      ${PRECISION_EXERCISES.map((ex) => {
+        const s = precisionStats[ex.id] || { attempts: 0, correct: 0 };
+        const acc = s.attempts ? Math.round((s.correct / s.attempts) * 100) : null;
+        const streak = getPrecisionStreak(ex.id);
+        return `<tr><td>${ex.label}</td><td>${s.attempts}</td><td>${acc === null ? "—" : acc + "%"}</td><td>${streak.best}</td></tr>`;
+      }).join("")}
+    </table>
+  `;
   area.appendChild(card);
 }
 
 function renderPrecisionView() {
   const area = document.getElementById("precision-quiz-area");
   area.innerHTML = "";
-  if (precisionMode === "quiz") renderPrecisionQuiz(area);
-  else if (precisionMode === "stats") renderStats(precisionDataset, area);
+  if (precisionMode === "stats") {
+    renderPrecisionStats(area);
+    return;
+  }
+  if (precisionExercise === "confronto") renderConfrontoExercise(area);
+  else if (precisionExercise === "trascrizione") renderTrascrizioneExercise(area);
+  else if (precisionExercise === "correzione") renderCorrezioneExercise(area);
 }
 
 // ---------- Init ----------
@@ -780,7 +969,7 @@ renderFiscalitaBadges();
 renderFiscalitaMode();
 renderDatasetToggle();
 renderJpMode();
-renderPrecisionTopics();
+renderPrecisionExercises();
 renderPrecisionStreakLabel();
 renderPrecisionView();
 
