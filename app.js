@@ -7,6 +7,8 @@ const LS_KEYS = {
   customWiki: "ia_custom_wiki",
   careerSectionsDone: "ia_career_sections_done",
   careerStats: "ia_career_stats",
+  fiscalitaSectionsDone: "ia_fiscalita_sections_done",
+  fiscalitaStats: "ia_fiscalita_stats",
 };
 
 function loadJSON(key, fallback) {
@@ -28,6 +30,8 @@ let wikiStats = loadJSON(LS_KEYS.wikiStats, {});
 let customWiki = loadJSON(LS_KEYS.customWiki, []);
 let careerSectionsDone = loadJSON(LS_KEYS.careerSectionsDone, []);
 let careerStats = loadJSON(LS_KEYS.careerStats, {});
+let fiscalitaSectionsDone = loadJSON(LS_KEYS.fiscalitaSectionsDone, []);
+let fiscalitaStats = loadJSON(LS_KEYS.fiscalitaStats, {});
 
 function fullWiki() {
   return WIKI.concat(customWiki);
@@ -48,12 +52,14 @@ function statsFor(dataset) {
   if (dataset === "hiragana") return hiraganaStats;
   if (dataset === "wiki") return wikiStats;
   if (dataset === "career") return careerStats;
+  if (dataset === "fiscalita") return fiscalitaStats;
   return readingStats;
 }
 function statsKeyFor(dataset) {
   if (dataset === "hiragana") return LS_KEYS.hiraganaStats;
   if (dataset === "wiki") return LS_KEYS.wikiStats;
   if (dataset === "career") return LS_KEYS.careerStats;
+  if (dataset === "fiscalita") return LS_KEYS.fiscalitaStats;
   return LS_KEYS.readingStats;
 }
 function itemsFor(dataset) {
@@ -62,6 +68,10 @@ function itemsFor(dataset) {
   if (dataset === "career") {
     if (careerBadgeFilter === "all") return CAREER_QUIZ;
     return CAREER_QUIZ.filter((q) => q.badge === careerBadgeFilter);
+  }
+  if (dataset === "fiscalita") {
+    if (fiscalitaBadgeFilter === "all") return FISCALITA_QUIZ;
+    return FISCALITA_QUIZ.filter((q) => q.badge === fiscalitaBadgeFilter);
   }
   return BOOK_QUIZ.filter((q) => q.chapter <= readingChapter);
 }
@@ -90,6 +100,10 @@ function itemMeta(dataset, item) {
     const s = CAREER_SECTIONS.find((sec) => sec.id === item.section);
     const b = CAREER_BADGES.find((bd) => bd.id === item.badge);
     return `Section ${item.section} — ${item.sectionTitle}${s ? ` (${s.weight}% of the exam)` : ""}${b ? ` · ${b.name}` : ""}`;
+  }
+  if (dataset === "fiscalita") {
+    const b = FISCALITA_BADGES.find((bd) => bd.id === item.badge);
+    return `Area ${item.section} — ${item.sectionTitle}${b ? ` · ${b.name}` : ""}`;
   }
   return "";
 }
@@ -130,7 +144,7 @@ function shuffle(arr) {
 
 function buildOptions(dataset, item) {
   const correctAnswer = itemAnswer(dataset, item);
-  if (dataset === "reading" || dataset === "career") {
+  if (dataset === "reading" || dataset === "career" || dataset === "fiscalita") {
     return { correctAnswer, options: shuffle(item.options.slice()) };
   }
   const items = itemsFor(dataset);
@@ -149,6 +163,7 @@ let currentItem = null;
 
 function emptyStateMessage(dataset) {
   if (dataset === "career") return "No questions available yet.";
+  if (dataset === "fiscalita") return "Nessuna domanda disponibile per questo filtro.";
   return "Imposta a che capitolo sei arrivato qui sopra per iniziare: le domande compaiono solo sui capitoli già letti, per non fare spoiler.";
 }
 
@@ -167,7 +182,7 @@ function renderFlashcard(dataset, area) {
   }
   currentItem = pickWeighted(dataset);
   const meta = itemMeta(dataset, currentItem);
-  const textMode = dataset === "reading" || dataset === "career";
+  const textMode = dataset === "reading" || dataset === "career" || dataset === "fiscalita";
   const isCareer = dataset === "career";
   const hintText = isCareer ? "Click to reveal, then rate whether you knew it" : "Clicca per rivelare, poi valuta se lo sapevi";
   const wrongLabel = isCareer ? "Didn't know it" : "Non lo sapevo";
@@ -209,7 +224,7 @@ function renderMultipleChoice(dataset, area) {
   }
   currentItem = pickWeighted(dataset);
   const meta = itemMeta(dataset, currentItem);
-  const textMode = dataset === "reading" || dataset === "career";
+  const textMode = dataset === "reading" || dataset === "career" || dataset === "fiscalita";
   const { correctAnswer, options } = buildOptions(dataset, currentItem);
 
   const card = document.createElement("div");
@@ -288,7 +303,7 @@ function renderStats(dataset, area) {
   const card = document.createElement("div");
   card.className = "card";
   const isCareer = dataset === "career";
-  const label = dataset === "hiragana" ? "Hiragana" : dataset === "wiki" ? "Wiki" : isCareer ? "Career" : "Lettura";
+  const label = dataset === "hiragana" ? "Hiragana" : dataset === "wiki" ? "Wiki" : isCareer ? "Career" : dataset === "fiscalita" ? "Fiscalità" : "Lettura";
   let rows = items.map((it) => {
     const key = itemKey(dataset, it);
     const s = stats[key];
@@ -298,7 +313,7 @@ function renderStats(dataset, area) {
     return { front: itemFront(dataset, it), answer: itemAnswer(dataset, it), attempts, correct, acc };
   });
   rows.sort((a, b) => (a.acc === null ? -1 : a.acc) - (b.acc === null ? -1 : b.acc));
-  const frontClass = dataset === "reading" || dataset === "career" ? "" : ' style="font-size:18px"';
+  const frontClass = dataset === "reading" || dataset === "career" || dataset === "fiscalita" ? "" : ' style="font-size:18px"';
   const heading = isCareer ? `Statistics — ${label}` : `Statistiche — ${label}`;
   const thAnswer = isCareer ? "Answer" : "Risposta";
   const thAttempts = isCareer ? "Attempts" : "Tentativi";
@@ -475,6 +490,88 @@ function renderGlossary(area) {
   renderResults();
 }
 
+// ---------- Fiscalità: quiz di ripasso TUIR (26 lezioni, 5 macro-aree) ----------
+let fiscalitaMode = "flashcard"; // "flashcard" | "mc" | "stats"
+let fiscalitaBadgeFilter = "all"; // "all" oppure l'id di una FISCALITA_BADGES (lezione)
+
+function renderFiscalitaBadges() {
+  const wrap = document.getElementById("fiscalita-badges-list");
+  wrap.className = "badge-filter";
+  wrap.innerHTML = "";
+
+  const allBtn = document.createElement("button");
+  allBtn.className = fiscalitaBadgeFilter === "all" ? "active" : "";
+  allBtn.textContent = "Tutte le lezioni";
+  allBtn.addEventListener("click", () => {
+    fiscalitaBadgeFilter = "all";
+    renderFiscalitaBadges();
+    renderFiscalitaMode();
+  });
+  wrap.appendChild(allBtn);
+
+  FISCALITA_BADGES.forEach((b) => {
+    const btn = document.createElement("button");
+    btn.className = fiscalitaBadgeFilter === b.id ? "active" : "";
+    btn.innerHTML = `${b.name}<span class="badge-meta">${b.meta}</span>`;
+    btn.addEventListener("click", () => {
+      fiscalitaBadgeFilter = b.id;
+      renderFiscalitaBadges();
+      renderFiscalitaMode();
+    });
+    wrap.appendChild(btn);
+  });
+}
+
+function renderFiscalitaProgress() {
+  const pct = Math.round((fiscalitaSectionsDone.length / FISCALITA_SECTIONS.length) * 100);
+  document.getElementById("fiscalita-progress-fill").style.width = pct + "%";
+  const answered = Object.values(fiscalitaStats).reduce((sum, s) => sum + s.attempts, 0);
+  const correct = Object.values(fiscalitaStats).reduce((sum, s) => sum + s.correct, 0);
+  document.getElementById("fiscalita-progress-label").textContent =
+    `${fiscalitaSectionsDone.length} / ${FISCALITA_SECTIONS.length} macro-aree ripassate (${pct}%)` +
+    (answered ? ` — ${correct}/${answered} risposte corrette finora` : "");
+
+  const list = document.getElementById("fiscalita-sections-checklist");
+  list.innerHTML = "";
+  FISCALITA_SECTIONS.forEach((sec) => {
+    const row = document.createElement("label");
+    row.className = "week-row";
+    row.style.cursor = "pointer";
+    row.innerHTML = `
+      <input type="checkbox" ${fiscalitaSectionsDone.includes(sec.id) ? "checked" : ""}>
+      <span class="week-body"><strong>${sec.id}. ${sec.name}</strong> <span class="muted">(${sec.count} lezioni)</span></span>
+    `;
+    const cb = row.querySelector("input");
+    cb.addEventListener("change", () => {
+      if (cb.checked) {
+        if (!fiscalitaSectionsDone.includes(sec.id)) fiscalitaSectionsDone.push(sec.id);
+      } else {
+        fiscalitaSectionsDone = fiscalitaSectionsDone.filter((id) => id !== sec.id);
+      }
+      saveJSON(LS_KEYS.fiscalitaSectionsDone, fiscalitaSectionsDone);
+      renderFiscalitaProgress();
+    });
+    list.appendChild(row);
+  });
+}
+
+document.querySelectorAll(".subnav button[data-fiscalitamode]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    fiscalitaMode = btn.dataset.fiscalitamode;
+    document.querySelectorAll(".subnav button[data-fiscalitamode]").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    renderFiscalitaMode();
+  });
+});
+
+function renderFiscalitaMode() {
+  const area = document.getElementById("fiscalita-quiz-area");
+  area.innerHTML = "";
+  if (fiscalitaMode === "flashcard") renderFlashcard("fiscalita", area);
+  else if (fiscalitaMode === "mc") renderMultipleChoice("fiscalita", area);
+  else if (fiscalitaMode === "stats") renderStats("fiscalita", area);
+}
+
 // ---------- Giapponese: hiragana / wiki ----------
 let currentDataset = "hiragana"; // "hiragana" | "wiki"
 let jpMode = "flashcard"; // "flashcard" | "mc" | "type" | "stats"
@@ -542,6 +639,9 @@ renderProgramReference();
 renderCareerProgress();
 renderCareerBadges();
 renderCareerMode();
+renderFiscalitaProgress();
+renderFiscalitaBadges();
+renderFiscalitaMode();
 renderDatasetToggle();
 renderJpMode();
 

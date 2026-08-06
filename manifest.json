@@ -1,7 +1,7 @@
 {
   "name": "Il mio percorso — Lettura & Giapponese",
   "short_name": "Percorso",
-  "description": "Quiz sul libro L'Investitore Autonomo e studio del giapponese (hiragana e vocaboli).",
+  "description": "Quiz sul libro L'Investitore Autonomo, giapponese (hiragana e vocaboli), preparazione Salesforce Certified Associate e ripasso Fiscalità (TUIR).",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

@@ -17,13 +17,14 @@
 
 <header>
   <h1>Il mio percorso</h1>
-  <p>Lettura de "L'Investitore Autonomo", giapponese e preparazione Salesforce — tutto salvato solo su questo telefono/browser.</p>
+  <p>Lettura de "L'Investitore Autonomo", giapponese, preparazione Salesforce e fiscalità (TUIR) — tutto salvato solo su questo telefono/browser.</p>
 </header>
 
 <nav class="tabs">
   <button class="active" data-view="view-reading">📖 Lettura</button>
   <button data-view="view-japanese">🇯🇵 Giapponese</button>
   <button data-view="view-career">💼 Carriera</button>
+  <button data-view="view-fiscalita">🧾 Fiscalità</button>
 </nav>
 
 <main>
@@ -107,6 +108,35 @@
     </div>
 
     <div id="career-quiz-area"></div>
+  </section>
+
+  <section id="view-fiscalita" class="view">
+    <div class="card">
+      <h2>Fiscalità (TUIR) — ripasso</h2>
+      <p class="muted">260 domande su 26 lezioni del corso interno EY GCR (Global Compliance and Reporting), grounded nel materiale delle lezioni e nei manuali Ceppellini / Andreani-Dodero-Ferranti. Non è il quiz ufficiale EY né sostituisce la normativa o i manuali per un caso reale con un cliente.</p>
+      <div class="progress-bar"><div id="fiscalita-progress-fill" style="width:0%"></div></div>
+      <div id="fiscalita-progress-label" class="muted"></div>
+    </div>
+
+    <div class="card">
+      <h2>Lezioni</h2>
+      <p class="muted">Clicca una lezione per allenarti solo su quella, senza mischiarla con le altre.</p>
+      <div id="fiscalita-badges-list"></div>
+    </div>
+
+    <div class="card">
+      <h2>Macro-aree</h2>
+      <p class="muted">Segna le macro-aree che hai già ripassato.</p>
+      <div id="fiscalita-sections-checklist"></div>
+    </div>
+
+    <div class="subnav">
+      <button data-fiscalitamode="flashcard" class="active">Flashcard</button>
+      <button data-fiscalitamode="mc">Quiz — scelta multipla</button>
+      <button data-fiscalitamode="stats">Statistiche</button>
+    </div>
+
+    <div id="fiscalita-quiz-area"></div>
   </section>
 
 </main>
