@@ -12,6 +12,8 @@ const LS_KEYS = {
   precisionStreak: "ia_precision_streak",
   precisionExercise: "ia_precision_exercise",
   precisionStats: "ia_precision_stats",
+  dailyActivity: "ia_daily_activity",
+  dailyGoal: "ia_daily_goal",
 };
 
 function loadJSON(key, fallback) {
@@ -38,10 +40,57 @@ let fiscalitaStats = loadJSON(LS_KEYS.fiscalitaStats, {});
 let precisionStreak = loadJSON(LS_KEYS.precisionStreak, {}); // { [exerciseId]: {current, best} }
 let precisionExercise = loadJSON(LS_KEYS.precisionExercise, "confronto");
 let precisionStats = loadJSON(LS_KEYS.precisionStats, {}); // { [exerciseId]: {attempts, correct} }
+let dailyActivity = loadJSON(LS_KEYS.dailyActivity, {}); // { "YYYY-MM-DD": count }
+let dailyGoal = loadJSON(LS_KEYS.dailyGoal, 15);
 
 function fullWiki() {
   return WIKI.concat(customWiki);
 }
+
+// ---------- Streak giornaliera + obiettivo (anti-procrastinazione) ----------
+function todayKey() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+function bumpDailyActivity() {
+  const key = todayKey();
+  dailyActivity[key] = (dailyActivity[key] || 0) + 1;
+  saveJSON(LS_KEYS.dailyActivity, dailyActivity);
+  renderDailyBanner();
+}
+
+function computeStreak() {
+  let streak = 0;
+  const cursor = new Date();
+  for (;;) {
+    const key = cursor.getFullYear() + "-" + String(cursor.getMonth() + 1).padStart(2, "0") + "-" + String(cursor.getDate()).padStart(2, "0");
+    const isToday = key === todayKey();
+    const count = dailyActivity[key] || 0;
+    if (count > 0) streak++;
+    else if (!isToday) break;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+
+function renderDailyBanner() {
+  const streak = computeStreak();
+  const todayCount = dailyActivity[todayKey()] || 0;
+  const pct = Math.min(100, Math.round((todayCount / dailyGoal) * 100));
+  document.getElementById("daily-streak-label").textContent = `🔥 Streak: ${streak} ${streak === 1 ? "giorno" : "giorni"}`;
+  document.getElementById("daily-goal-fill").style.width = pct + "%";
+  document.getElementById("daily-goal-label").textContent = `Oggi: ${todayCount} / ${dailyGoal} risposte`;
+  document.getElementById("daily-goal-input").value = dailyGoal;
+}
+
+document.getElementById("daily-goal-input").addEventListener("change", (e) => {
+  let v = parseInt(e.target.value, 10);
+  if (isNaN(v) || v < 1) v = 1;
+  dailyGoal = v;
+  saveJSON(LS_KEYS.dailyGoal, dailyGoal);
+  renderDailyBanner();
+});
 
 // ---------- Tab navigation ----------
 document.querySelectorAll("nav.tabs button").forEach((btn) => {
@@ -50,6 +99,7 @@ document.querySelectorAll("nav.tabs button").forEach((btn) => {
     document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById(btn.dataset.view).classList.add("active");
+    if (btn.dataset.view === "view-overview") renderOverview();
   });
 });
 
@@ -121,19 +171,26 @@ function recordResult(dataset, item, correct) {
   s.attempts++;
   if (correct) s.correct++;
   s.lastWrong = !correct;
+  s.lastSeen = Date.now();
   stats[key] = s;
   saveJSON(statsKeyFor(dataset), stats);
+  bumpDailyActivity();
 }
+
+const STALE_MS = 3 * 24 * 60 * 60 * 1000; // sopra i 3 giorni, ripescala una voce corretta ma non rivista
 
 function pickWeighted(dataset) {
   const items = itemsFor(dataset);
   const stats = statsFor(dataset);
+  const now = Date.now();
   const weights = items.map((it) => {
     const s = stats[itemKey(dataset, it)];
     if (!s) return 3; // mai visto: priorità alta
     if (s.lastWrong) return 4; // sbagliato l'ultima volta: priorità massima
     const acc = s.correct / s.attempts;
-    return acc < 0.5 ? 3 : 1;
+    if (acc < 0.5) return 3;
+    if (s.lastSeen && now - s.lastSeen > STALE_MS) return 3; // corretto ma non rivisto da un po': fallo riemergere
+    return 1;
   });
   const total = weights.reduce((a, b) => a + b, 0);
   let r = Math.random() * total;
@@ -241,12 +298,26 @@ function renderMultipleChoice(dataset, area) {
   `;
   const optWrap = document.createElement("div");
   optWrap.className = "quiz-options";
+  const hintBtn = document.createElement("button");
+  hintBtn.className = "hint-btn";
+  hintBtn.textContent = dataset === "career" ? "💡 Hint" : "💡 Aiuto";
+  hintBtn.addEventListener("click", () => {
+    const wrongButtons = Array.from(optWrap.querySelectorAll("button")).filter(
+      (b) => b.textContent !== correctAnswer && !b.disabled
+    );
+    if (wrongButtons.length === 0) return;
+    const toRemove = wrongButtons[Math.floor(Math.random() * wrongButtons.length)];
+    toRemove.disabled = true;
+    toRemove.classList.add("hint-removed");
+    hintBtn.disabled = true;
+  });
   options.forEach((opt) => {
     const b = document.createElement("button");
     b.textContent = opt;
     b.addEventListener("click", () => {
       const correct = opt === correctAnswer;
       recordResult(dataset, currentItem, correct);
+      hintBtn.disabled = true;
       optWrap.querySelectorAll("button").forEach((ob) => {
         ob.disabled = true;
         if (ob.textContent === correctAnswer) ob.classList.add("correct");
@@ -265,6 +336,7 @@ function renderMultipleChoice(dataset, area) {
     optWrap.appendChild(b);
   });
   card.appendChild(optWrap);
+  card.appendChild(hintBtn);
   area.appendChild(card);
 }
 
@@ -282,11 +354,19 @@ function renderTypeQuiz(dataset, area) {
     <div class="char" style="font-size:56px;margin-bottom:16px">${itemFront(dataset, currentItem)}</div>
     <input type="text" placeholder="scrivi la risposta..." autocomplete="off">
     <button class="submit">Verifica</button>
+    <button class="hint-btn">💡 Aiuto</button>
+    <div class="hint-reveal"></div>
     <div class="feedback"></div>
   `;
   const input = card.querySelector("input");
   const submit = card.querySelector(".submit");
+  const hintBtn = card.querySelector(".hint-btn");
+  const hintReveal = card.querySelector(".hint-reveal");
   const feedback = card.querySelector(".feedback");
+  hintBtn.addEventListener("click", () => {
+    hintReveal.textContent = `Inizia con "${correctAnswer.charAt(0)}"`;
+    hintBtn.disabled = true;
+  });
   function check() {
     const val = input.value.toLowerCase().trim();
     const correct = val === correctAnswer;
@@ -295,6 +375,7 @@ function renderTypeQuiz(dataset, area) {
     feedback.textContent = correct ? "Corretto!" : `Sbagliato. Risposta corretta: ${correctAnswer}`;
     input.disabled = true;
     submit.disabled = true;
+    hintBtn.disabled = true;
     setTimeout(() => renderTypeQuiz(dataset, area), 1100);
   }
   submit.addEventListener("click", check);
@@ -688,6 +769,7 @@ function recordPrecisionResult(exerciseId, correct) {
   saveJSON(LS_KEYS.precisionStats, precisionStats);
   bumpPrecisionStreak(exerciseId, correct);
   renderPrecisionStreakLabel();
+  bumpDailyActivity();
 }
 
 function finishPrecisionRound(card, correct, explanation) {
@@ -957,7 +1039,87 @@ function renderPrecisionView() {
   else if (precisionExercise === "correzione") renderCorrezioneExercise(area);
 }
 
+// ---------- Panoramica: vista d'insieme cross-sezione ----------
+function accumulate(items, stats, keyFn) {
+  let attempted = 0, attempts = 0, correct = 0;
+  items.forEach((it) => {
+    const s = stats[keyFn(it)];
+    if (s) {
+      attempted++;
+      attempts += s.attempts;
+      correct += s.correct;
+    }
+  });
+  return { total: items.length, attempted, attempts, correct };
+}
+
+function mergeAcc(a, b) {
+  return {
+    total: a.total + b.total,
+    attempted: a.attempted + b.attempted,
+    attempts: a.attempts + b.attempts,
+    correct: a.correct + b.correct,
+  };
+}
+
+function toOverviewRow(label, acc) {
+  const coverage = acc.total ? Math.round((acc.attempted / acc.total) * 100) : null;
+  const accuracy = acc.attempts ? Math.round((acc.correct / acc.attempts) * 100) : null;
+  return { label, coverage, accuracy, attempts: acc.attempts };
+}
+
+function renderOverview() {
+  const area = document.getElementById("overview-area");
+  area.innerHTML = "";
+
+  const readingAcc = accumulate(itemsFor("reading"), readingStats, (it) => it.id);
+  const hiraganaAcc = accumulate(HIRAGANA, hiraganaStats, (it) => it.char);
+  const wikiAcc = accumulate(fullWiki(), wikiStats, (it) => it.id);
+  const careerAcc = accumulate(CAREER_QUIZ, careerStats, (it) => it.id);
+  const fiscalitaAcc = accumulate(FISCALITA_QUIZ, fiscalitaStats, (it) => it.id);
+  let precAttempts = 0, precCorrect = 0;
+  PRECISION_EXERCISES.forEach((ex) => {
+    const s = precisionStats[ex.id];
+    if (s) { precAttempts += s.attempts; precCorrect += s.correct; }
+  });
+  const precisionRow = {
+    label: "🎯 Precisione",
+    coverage: null,
+    accuracy: precAttempts ? Math.round((precCorrect / precAttempts) * 100) : null,
+    attempts: precAttempts,
+  };
+
+  const rows = [
+    toOverviewRow("📖 Lettura", readingAcc),
+    toOverviewRow("🇯🇵 Giapponese", mergeAcc(hiraganaAcc, wikiAcc)),
+    toOverviewRow("💼 Carriera", careerAcc),
+    toOverviewRow("🧾 Fiscalità", fiscalitaAcc),
+    precisionRow,
+  ];
+
+  const streak = computeStreak();
+  const todayCount = dailyActivity[todayKey()] || 0;
+  const weakest = rows
+    .filter((r) => r.attempts >= 5 && r.accuracy !== null)
+    .sort((a, b) => a.accuracy - b.accuracy)[0];
+
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `
+    <h2>Panoramica</h2>
+    <p class="muted">🔥 Streak: ${streak} ${streak === 1 ? "giorno" : "giorni"} · Oggi: ${todayCount}/${dailyGoal} risposte</p>
+    <table class="stats-table">
+      <tr><th>Sezione</th><th>Copertura</th><th>% corrette</th><th>Risposte date</th></tr>
+      ${rows.map((r) => `<tr><td>${r.label}</td><td>${r.coverage === null ? "—" : r.coverage + "%"}</td><td>${r.accuracy === null ? "—" : r.accuracy + "%"}</td><td>${r.attempts}</td></tr>`).join("")}
+    </table>
+    ${weakest ? `<p class="muted" style="margin-top:10px">💡 Suggerimento: la sezione più debole al momento è <strong>${weakest.label}</strong> (${weakest.accuracy}% corrette) — potrebbe valere la pena ripassarla oggi.</p>` : ""}
+  `;
+  area.appendChild(card);
+}
+
 // ---------- Init ----------
+renderDailyBanner();
+renderOverview();
 renderReadingProgress();
 renderReadMode();
 renderProgramReference();

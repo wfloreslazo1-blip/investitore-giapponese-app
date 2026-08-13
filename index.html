@@ -20,8 +20,18 @@
   <p>Lettura de "L'Investitore Autonomo", giapponese, preparazione Salesforce e fiscalità (TUIR) — tutto salvato solo su questo telefono/browser.</p>
 </header>
 
+<div class="daily-banner">
+  <div class="daily-banner-top">
+    <span id="daily-streak-label" class="daily-streak-label"></span>
+    <span class="daily-goal-edit">Obiettivo: <input type="number" id="daily-goal-input" min="1" max="200" class="daily-goal-input"> al giorno</span>
+  </div>
+  <div class="progress-bar"><div id="daily-goal-fill" style="width:0%"></div></div>
+  <div id="daily-goal-label" class="muted"></div>
+</div>
+
 <nav class="tabs">
-  <button class="active" data-view="view-reading">📖 Lettura</button>
+  <button class="active" data-view="view-overview">🏠 Panoramica</button>
+  <button data-view="view-reading">📖 Lettura</button>
   <button data-view="view-japanese">🇯🇵 Giapponese</button>
   <button data-view="view-career">💼 Carriera</button>
   <button data-view="view-fiscalita">🧾 Fiscalità</button>
@@ -30,7 +40,11 @@
 
 <main>
 
-  <section id="view-reading" class="view active">
+  <section id="view-overview" class="view active">
+    <div id="overview-area"></div>
+  </section>
+
+  <section id="view-reading" class="view">
     <div class="card">
       <h2>Il tuo percorso di lettura</h2>
       <label for="reading-chapter-input" class="muted">A che capitolo sei arrivato? (su 32)</label><br>

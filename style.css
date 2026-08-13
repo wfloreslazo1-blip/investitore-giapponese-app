@@ -43,6 +43,7 @@ nav.tabs {
   max-width: 900px;
   margin: 0 auto;
   padding: 0 20px;
+  overflow-x: auto;
 }
 nav.tabs button {
   background: none;
@@ -53,6 +54,8 @@ nav.tabs button {
   color: var(--muted);
   border-bottom: 3px solid transparent;
   margin-bottom: -2px;
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 nav.tabs button.active {
   color: var(--accent);
@@ -203,3 +206,20 @@ h2 { color: var(--accent); font-size: 17px; margin-top: 0; }
 .correzione-sentence { font-size: 17px; line-height: 1.9; margin-bottom: 16px; }
 .correzione-word { cursor: pointer; border-radius: 4px; padding: 1px 2px; }
 .correzione-word:hover { background: var(--bg); }
+
+.daily-banner { max-width: 900px; margin: 0 auto; padding: 10px 20px 0 20px; }
+.daily-banner-top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 13px; }
+.daily-streak-label { font-weight: 700; color: var(--accent-2); }
+.daily-goal-edit { color: var(--muted); }
+.daily-goal-input {
+  width: 46px; margin: 0 4px; padding: 2px 4px; border-radius: 4px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--ink); text-align: center; font-size: 13px;
+}
+
+.hint-btn {
+  display: block; margin: 14px auto 0 auto; padding: 8px 16px; border-radius: 20px;
+  border: 1px solid var(--border); background: var(--card); color: var(--accent-2); cursor: pointer; font-size: 13px;
+}
+.hint-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.quiz-options button.hint-removed { opacity: 0.35; text-decoration: line-through; }
+.hint-reveal { margin-top: 8px; font-size: 13px; color: var(--accent-2); min-height: 16px; text-align: center; }
