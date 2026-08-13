@@ -179,26 +179,38 @@ function recordResult(dataset, item, correct) {
 
 const STALE_MS = 3 * 24 * 60 * 60 * 1000; // sopra i 3 giorni, ripescala una voce corretta ma non rivista
 
+function priorityFor(dataset, item, stats, now) {
+  const s = stats[itemKey(dataset, item)];
+  if (!s) return 3; // mai visto: priorità alta
+  if (s.lastWrong) return 4; // sbagliato l'ultima volta: priorità massima
+  const acc = s.correct / s.attempts;
+  if (acc < 0.5) return 3;
+  if (s.lastSeen && now - s.lastSeen > STALE_MS) return 3; // corretto ma non rivisto da un po': fallo riemergere
+  return 1;
+}
+
+// Code di sessione: una per dataset, ricostruita quando cambia il pool (filtro/capitolo)
+// o quando è stata percorsa tutta. Array.prototype.sort è stabile, quindi a parità di
+// priorità le domande restano nell'ordine in cui compaiono nella guida/banca dati.
+let sessionQueues = {};
+
 function pickWeighted(dataset) {
   const items = itemsFor(dataset);
   const stats = statsFor(dataset);
-  const now = Date.now();
-  const weights = items.map((it) => {
-    const s = stats[itemKey(dataset, it)];
-    if (!s) return 3; // mai visto: priorità alta
-    if (s.lastWrong) return 4; // sbagliato l'ultima volta: priorità massima
-    const acc = s.correct / s.attempts;
-    if (acc < 0.5) return 3;
-    if (s.lastSeen && now - s.lastSeen > STALE_MS) return 3; // corretto ma non rivisto da un po': fallo riemergere
-    return 1;
-  });
-  const total = weights.reduce((a, b) => a + b, 0);
-  let r = Math.random() * total;
-  for (let i = 0; i < items.length; i++) {
-    r -= weights[i];
-    if (r <= 0) return items[i];
+  const poolKey = items.map((it) => itemKey(dataset, it)).join(",");
+  let q = sessionQueues[dataset];
+  if (!q || q.poolKey !== poolKey || q.pos >= q.order.length) {
+    const now = Date.now();
+    const ordered = items
+      .map((it) => ({ key: itemKey(dataset, it), priority: priorityFor(dataset, it, stats, now) }))
+      .sort((a, b) => b.priority - a.priority)
+      .map((w) => w.key);
+    q = { poolKey, order: ordered, pos: 0 };
+    sessionQueues[dataset] = q;
   }
-  return items[items.length - 1];
+  const key = q.order[q.pos];
+  q.pos++;
+  return items.find((it) => itemKey(dataset, it) === key);
 }
 
 function shuffle(arr) {
