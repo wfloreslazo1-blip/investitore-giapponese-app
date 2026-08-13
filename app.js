@@ -164,6 +164,9 @@ function itemMeta(dataset, item) {
   return "";
 }
 
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const MAX_INTERVAL_DAYS = 60;
+
 function recordResult(dataset, item, correct) {
   const stats = statsFor(dataset);
   const key = itemKey(dataset, item);
@@ -172,21 +175,20 @@ function recordResult(dataset, item, correct) {
   if (correct) s.correct++;
   s.lastWrong = !correct;
   s.lastSeen = Date.now();
+  // Ripetizione spaziata: risposta giusta raddoppia l'intervallo prima del prossimo
+  // ripasso, sbagliata lo azzera (torna "dovuta" da subito) — stile Leitner.
+  s.interval = correct ? Math.min(s.interval ? s.interval * 2 : 1, MAX_INTERVAL_DAYS) : 0;
+  s.dueDate = Date.now() + s.interval * ONE_DAY_MS;
   stats[key] = s;
   saveJSON(statsKeyFor(dataset), stats);
   bumpDailyActivity();
 }
 
-const STALE_MS = 3 * 24 * 60 * 60 * 1000; // sopra i 3 giorni, ripescala una voce corretta ma non rivista
-
 function priorityFor(dataset, item, stats, now) {
   const s = stats[itemKey(dataset, item)];
-  if (!s) return 3; // mai visto: priorità alta
-  if (s.lastWrong) return 4; // sbagliato l'ultima volta: priorità massima
-  const acc = s.correct / s.attempts;
-  if (acc < 0.5) return 3;
-  if (s.lastSeen && now - s.lastSeen > STALE_MS) return 3; // corretto ma non rivisto da un po': fallo riemergere
-  return 1;
+  if (!s) return 3; // mai vista: nuova, va introdotta
+  if (!s.dueDate || s.dueDate <= now) return 3; // dovuta oggi (sbagliata o intervallo scaduto)
+  return 1; // già ripassata di recente, non ancora dovuta
 }
 
 // Code di sessione: una per dataset, ricostruita quando cambia il pool (filtro/capitolo)
@@ -1053,16 +1055,20 @@ function renderPrecisionView() {
 
 // ---------- Panoramica: vista d'insieme cross-sezione ----------
 function accumulate(items, stats, keyFn) {
-  let attempted = 0, attempts = 0, correct = 0;
+  const now = Date.now();
+  let attempted = 0, attempts = 0, correct = 0, due = 0;
   items.forEach((it) => {
     const s = stats[keyFn(it)];
     if (s) {
       attempted++;
       attempts += s.attempts;
       correct += s.correct;
+      if (!s.dueDate || s.dueDate <= now) due++;
+    } else {
+      due++; // mai vista: conta come "da fare" oggi
     }
   });
-  return { total: items.length, attempted, attempts, correct };
+  return { total: items.length, attempted, attempts, correct, due };
 }
 
 function mergeAcc(a, b) {
@@ -1071,13 +1077,14 @@ function mergeAcc(a, b) {
     attempted: a.attempted + b.attempted,
     attempts: a.attempts + b.attempts,
     correct: a.correct + b.correct,
+    due: a.due + b.due,
   };
 }
 
 function toOverviewRow(label, acc) {
   const coverage = acc.total ? Math.round((acc.attempted / acc.total) * 100) : null;
   const accuracy = acc.attempts ? Math.round((acc.correct / acc.attempts) * 100) : null;
-  return { label, coverage, accuracy, attempts: acc.attempts };
+  return { label, coverage, accuracy, attempts: acc.attempts, due: acc.due };
 }
 
 function renderOverview() {
@@ -1099,6 +1106,7 @@ function renderOverview() {
     coverage: null,
     accuracy: precAttempts ? Math.round((precCorrect / precAttempts) * 100) : null,
     attempts: precAttempts,
+    due: null,
   };
 
   const rows = [
@@ -1111,6 +1119,7 @@ function renderOverview() {
 
   const streak = computeStreak();
   const todayCount = dailyActivity[todayKey()] || 0;
+  const totalDue = rows.reduce((sum, r) => sum + (r.due || 0), 0);
   const weakest = rows
     .filter((r) => r.attempts >= 5 && r.accuracy !== null)
     .sort((a, b) => a.accuracy - b.accuracy)[0];
@@ -1119,10 +1128,10 @@ function renderOverview() {
   card.className = "card";
   card.innerHTML = `
     <h2>Panoramica</h2>
-    <p class="muted">🔥 Streak: ${streak} ${streak === 1 ? "giorno" : "giorni"} · Oggi: ${todayCount}/${dailyGoal} risposte</p>
+    <p class="muted">🔥 Streak: ${streak} ${streak === 1 ? "giorno" : "giorni"} · Oggi: ${todayCount}/${dailyGoal} risposte · 📅 ${totalDue} da ripassare</p>
     <table class="stats-table">
-      <tr><th>Sezione</th><th>Copertura</th><th>% corrette</th><th>Risposte date</th></tr>
-      ${rows.map((r) => `<tr><td>${r.label}</td><td>${r.coverage === null ? "—" : r.coverage + "%"}</td><td>${r.accuracy === null ? "—" : r.accuracy + "%"}</td><td>${r.attempts}</td></tr>`).join("")}
+      <tr><th>Sezione</th><th>Copertura</th><th>% corrette</th><th>Da ripassare</th></tr>
+      ${rows.map((r) => `<tr><td>${r.label}</td><td>${r.coverage === null ? "—" : r.coverage + "%"}</td><td>${r.accuracy === null ? "—" : r.accuracy + "%"}</td><td>${r.due === null ? "—" : r.due}</td></tr>`).join("")}
     </table>
     ${weakest ? `<p class="muted" style="margin-top:10px">💡 Suggerimento: la sezione più debole al momento è <strong>${weakest.label}</strong> (${weakest.accuracy}% corrette) — potrebbe valere la pena ripassarla oggi.</p>` : ""}
   `;
